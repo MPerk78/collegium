@@ -1,5 +1,5 @@
 # Collegium
-This repository contains code for Collegium, a dashboard that allows community colleges to profile peer institutions, which can be found here:  https://rpubs.com/MarkRules/1186315. For the associated publication of this software, go here: <final DOI if published>
+This repository contains code for Collegium, a dashboard that allows community colleges to profile peer institutions, which can be found here:  https://marksresearch.shinyapps.io/collegium/. For the associated publication of this software, go here: [final DOI if published>](https://rpubs.com/MarkRules/1186315)
 
 # Data Requirements
 Collegium requires two datasets: 
