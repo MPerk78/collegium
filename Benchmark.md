@@ -15,10 +15,13 @@ library(RODBC)
 library(questionr)
 ```
 
+# Download necessary data
+
+``` r
 ### Include your Census Key:
 
 census_api_key("API_Key Goes her")
-
+```
 ### Get Access file path
 
 IPEDSDatabase \<- odbcDriverConnect(“Driver={Microsoft Access Driver
