@@ -1,7 +1,9 @@
 Benchmark Analysis
 ================
-Mark Perkins
+Mark Perkins and Sean Field
 2024-04-30
+
+# Load required libraries for data munging
 
 ``` r
 library(ipeds)
@@ -11,14 +13,18 @@ library(tidycensus)
 library(knitr)
 library(RODBC)
 library(questionr)
-library(tibble)
 ```
 
-Include yoru Census Key: census_api_key(“API_Key Goes here”)
+### Include your Census Key:
 
-\###Get Access file path IPEDSDatabase \<-
-odbcDriverConnect(“Driver={Microsoft Access Driver (*.mdb,
-*.accdb)};DBQ=FILE PATH HERE”)
+census_api_key(“API_Key Goes here”)
+
+### Get Access file path
+
+IPEDSDatabase \<- odbcDriverConnect(“Driver={Microsoft Access Driver
+(*.mdb, *.accdb)};DBQ=FILE PATH HERE”)
+
+# Begin to build your dataset with IPEDS using the Access file from the site linked on GitHub
 
 ``` r
 #Get Institution Information from HD Table and Reduce to Desired Variables
@@ -76,6 +82,8 @@ costinformation <-  sqlFetch(IPEDSDatabase, "DRVIC2021")
 costinformation <-  costinformation %>%
  select(UNITID, CINSOFF, CINSON)
 ```
+
+# A series of complex joins to link all the variables into one database for IPEDS
 
 ``` r
 ipeds <- left_join(institutioninformation, enrollmentinformationgender, by = "UNITID") %>%
@@ -141,6 +149,8 @@ ipeds$COUNTYCODE  <-  sprintf("%05d", ipeds$COUNTYCD)
 write.csv(ipeds, "ipeds.csv")
 ```
 
+# Begin U.S. Census data extraction and analysis using tidycensus. This includes several metrics starting wtih change in population.
+
 ``` r
 years<- lst(2015, 2020)
 
@@ -164,6 +174,8 @@ population<- population %>%
 
 population<- select(population, GEOID, popchange, percentpopchange)
 ```
+
+## Get recent demographics from U.S. census.
 
 ``` r
 #Capture the aligned cesus data and export to an excel file
@@ -366,6 +378,8 @@ Married<- Married %>%
 Married<- select(Married, GEOID, percentnevermarried, percentmarried, percentdivorced, percentseparated, percentwidowed, percentsingle)
 ```
 
+# Education level data from U.S. Census
+
 ``` r
 Education<-get_acs(geography = "county", variables = c(EduPop="B07409_001",LessHS="B07409_002", HSorEquiv="B07409_003", SomeCollegeAss="B07409_004", Bach="B07409_005", GradorProf="B07409_006"))
 Education<- select(Education, GEOID, variable, estimate)
@@ -392,6 +406,8 @@ Education<- Education %>%
 
 Education<- select(Education, GEOID, PercentLessthanHS, PercentHS, PercentSomeorASS, PercentBach, PercentGradorPro)
 ```
+
+# More demographic data from U.S. census. Note we calculate proportions given total population and age groups.
 
 ``` r
 Tribes<-get_acs(geography = "county", variables = c(pop = "B01003_001", tribes = "B02014_002"))
@@ -455,6 +471,8 @@ Renters<- Renters %>%
 Renters<- select(Renters, GEOID, PercentRent)
 ```
 
+# A series of joins to combine all the census data into one dataset.
+
 ``` r
 census<- left_join(employ, Health, by = "GEOID")%>%
   left_join(income, by = "GEOID")%>%
@@ -476,6 +494,8 @@ census<- select(census, GEOID, County,  Percent_Unemployed, HPro, HTot, NoHealth
 write.csv(census, "census.csv")
 ```
 
+# Joining IPEDS and census data using county code as the linking column.
+
 ``` r
 census<- read.csv("census.csv")
 
@@ -493,6 +513,8 @@ ipedsgraddata<- select(ipedsgraddata, COUNTYCODE, X, County, COUNTYCD, UNITID, I
 write.csv(ipedsgraddata, "ipedsgradmassive2.csv")
 ```
 
+# Code for the Shiny dashboard. Be sure to use a Shiny application file to run this.
+
 ``` r
 library(factoextra)
 library(FactoMineR)
@@ -504,11 +526,15 @@ library(shiny)
 library(shinyWidgets)
 library(shinydashboard)
 library(plotly)
+library(corrr)
+library(factoextra)
+library(FactoMineR)
+
 
 # Load data
 df <- na.omit(read.csv("ipedsgradmassive2.csv"))
-df <- select(df, UNITID, Institution, TwoYGradRate100, TwoYGradRate150,
-             TwoYGradRate200, FT_Retention, PT_Retention, Cost_Off_Campus, gradtransf,
+df <- select(df, UNITID, Institution, TwoYGradRate150,
+             FT_Retention, PT_Retention, Cost_Off_Campus, gradtransf,
              Percent_Women, Percent_FT, Percent_Am_Indian, Percent_Asian, Percent_Black,
              Percent_Hispanic, Percent_Hawaii_PI, Percent_Non_Resident, Percent_Unknown,
              Percent_Two_or_More, Percent_White, Percent_Unemployed, WithHealth, med_income,
@@ -517,6 +543,38 @@ df <- select(df, UNITID, Institution, TwoYGradRate100, TwoYGradRate150,
              PercentLessthanHS, PercentHS, PercentSomeorASS, PercentBach, PercentGradorPro,
              percenttribe, SingleParPercent, PercentNotCitizen, PercentImmigrant, PercentRent) %>%
   arrange(Institution)
+
+corrdata <- df%>%
+select(-UNITID)
+corrdata<- correlate(corrdata)%>%
+  shave() %>%
+  mutate(across(where(is.numeric), ~ round(.x, 2)))
+
+formatted_df <- as.data.frame(corrdata)
+
+formatted_df <- tibble::rownames_to_column(formatted_df, "Variable")%>%
+  select(-Variable)
+
+brks <- seq(-1, 1, .01)
+clrs <- colorRampPalette(c("white", "#6baed6"))(length(brks) + 1)
+
+dataCol_df <- ncol(formatted_df) - 1  # Exclude the first column which contains row names
+dataColRng <- 1:dataCol_df  # Range of columns
+
+datatable_obj <- datatable(
+  formatted_df,
+  escape = FALSE,
+  options = list(
+    paging = TRUE,
+    searching = FALSE,
+    info = FALSE,
+    sort = TRUE,
+    scrollX = TRUE,
+    fixedColumns = list(leftColumns = 2)  # Fix the first two left columns
+  )
+) %>%
+  formatStyle(columns = dataColRng, backgroundColor = styleInterval(brks, clrs))
+
 
 dictionary<- read.csv('datadictionary.csv')
 
@@ -571,15 +629,46 @@ ui <- dashboardPage(
                                 ")),
                 fluidRow(
                   column(width = 12, 
-                         h3("To use this dashboard, first select the number of clusters you want from the slidebar at level 1. Then search your institution in the search box on the first table. Next, select the cluster number for your institution. Next, scroll to the second row of plots and repeat. This should narrow your institution's peers down to a smaller sub-set of Community Colleges. You can download the first, second, or third level of peers. If your list is too large after three, you could randomly select from that list to get a reasonable set based on profile analytics. If you have too few, go up a level.")
+                         h3("To use this dashboard, first examine the scatter plot 
+                            to determine the vairables that correlate the highest.
+                            Next, use the picker input control to select the variables
+                            you want for your cluster analysis. Then select the number of 
+                            clusters you want from the slidebar at level 1. 
+                            Then search your institution in the search box on 
+                            the first table. Next, select the cluster number 
+                            for your institution. Next, scroll to the second 
+                            row of plots and repeat. This should narrow your 
+                            institution's peers down to a smaller sub-set of 
+                            Community Colleges. You can download the first, 
+                            second, or third level of peers. If your list is 
+                            too large after three, you could randomly select 
+                            from that list to get a reasonable set based on 
+                            profile analytics. If you have too few, go up a level.")
                   )
                 ),
+                h1("Correlation Table"),
+                fluidRow(
+                  column(width = 12,
+                          DT::dataTableOutput("correlation_table"),
+                          downloadButton("cortbl", "Download Correlation Matrix"))),
                 h1("Level 1"),
+                fluidRow(
+                  column(width = 12,
+                         pickerInput("selected_vars", "Select Variables:", 
+                                     choices = setdiff(colnames(df), c("UNITID", "Institution")),  # Exclude UNITID and Institution
+                                     selected = setdiff(colnames(df), c("UNITID", "Institution")),  # Set all variables except UNITID and Institution as selected by default
+                                     multiple = TRUE, 
+                                     options = list(
+                                       `actions-box` = TRUE,
+                                       `selected-text-format` = "count > 3",
+                                       `count-selected-text` = "Choose Variables")))
+                ),
                 fluidRow(
                   column(width = 12,
                          sliderInput("n_clusters", "Number of Clusters:", min = 1, max = 10, value = 5)
                   )
                 ),
+            
                 fluidRow(
                   column(width = 3,
                          plotOutput("screeplot", height = "250px")
@@ -664,27 +753,96 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   
+  ## Correlation Table
+  output$correlation_table <- renderDT({
+    datatable_obj
+  })
+  
+  ## Download the correlation data
+  ###Download handler for the data dictionary
+  output$cortbl <- downloadHandler(
+    filename = function() {
+      paste("correlations", ".csv", sep = "")
+    }, 
+    content = function(file) {
+      write.csv(corrdata, file)
+    }
+  )
+  
   # Reactive expression for performing PCA
   pca_results <- reactive({
-    # Exclude UNITID and Institution from PCA
-    PCA(select(df, -UNITID, -Institution), graph = FALSE)
+    selected_vars <- input$selected_vars
+    if (is.null(selected_vars)) {
+      selected_vars <- colnames(df)
+    }
+    PCA(select(df, all_of(selected_vars)), graph = FALSE)
   })
   
   # Reactive expression for performing K-means clustering
   kmeans_results <- reactive({
     set.seed(123)
-    kmeans(scale(select(df, -UNITID, -Institution)), input$n_clusters, nstart = 25)
+    selected_vars <- input$selected_vars
+    if (is.null(selected_vars)) {
+      selected_vars <- colnames(df)
+    }
+    kmeans(scale(select(df, all_of(selected_vars))), input$n_clusters, nstart = 25)
   })
   
   # Reactive expression for filtering data based on selected cluster
   filtered_data <- reactive({
-    # Filter data based on selected cluster
     if (!is.null(input$selected_cluster)) {
-      filtered_df <- df[kmeans_results()$cluster %in% input$selected_cluster, ]
+      df[kmeans_results()$cluster %in% input$selected_cluster, ]
     } else {
-      filtered_df <- df
+      df
     }
-    return(filtered_df)
+  })
+  
+  # Reactive expression for performing PCA on filtered data for second level clustering
+  pca_results_df_with_clusters <- reactive({
+    req(input$selected_vars)  # Ensure input is not NULL
+    selected_vars <- input$selected_vars
+    PCA(select(filtered_data(), all_of(selected_vars)), graph = FALSE)
+  })
+  
+  # Reactive expression for performing K-means clustering on filtered data for second level clustering
+  kmeans_results_df_with_clusters <- reactive({
+    req(input$selected_vars)  # Ensure input is not NULL
+    set.seed(123)
+    selected_vars <- input$selected_vars
+    kmeans(scale(select(filtered_data(), all_of(selected_vars))), input$n_clusters2, nstart = 25)
+  })
+  
+  # Reactive expression for filtering data based on selected cluster for filtered data for second level clustering
+  filtered_data_df_with_clusters <- reactive({
+    if (!is.null(input$selected_cluster2)) {
+      filtered_data()[kmeans_results_df_with_clusters()$cluster %in% input$selected_cluster2, ]
+    } else {
+      filtered_data()
+    }
+  })
+  
+  # Reactive expression for performing PCA on filtered data for third level clustering
+  pca_results_df_with_clusters3 <- reactive({
+    req(input$selected_vars)  # Ensure input is not NULL
+    selected_vars <- input$selected_vars
+    PCA(select(filtered_data_df_with_clusters(), all_of(selected_vars)), graph = FALSE)
+  })
+  
+  # Reactive expression for performing K-means clustering on filtered data for third level clustering
+  kmeans_results_df_with_clusters3 <- reactive({
+    req(input$selected_vars)  # Ensure input is not NULL
+    set.seed(123)
+    selected_vars <- input$selected_vars
+    kmeans(scale(select(filtered_data_df_with_clusters(), all_of(selected_vars))), input$n_clusters3, nstart = 25)
+  })
+  
+  # Reactive expression for filtering data based on selected cluster for filtered data for third level clustering
+  filtered_data_df_with_clusters3 <- reactive({
+    if (!is.null(input$selected_cluster3)) {
+      filtered_data_df_with_clusters()[kmeans_results_df_with_clusters3()$cluster %in% input$selected_cluster3, ]
+    } else {
+      filtered_data_df_with_clusters()
+    }
   })
   
   # Update screeplot based on PCA results
@@ -694,85 +852,13 @@ server <- function(input, output, session) {
   
   # Update cluster_plot based on K-means clustering results
   output$cluster_plot <- renderPlot({
-    fviz_cluster(kmeans_results(), 
-                 data = select(df, -UNITID, -Institution), 
-                 geom = "point", ellipse.type = "convex",
-                 ggtheme = theme_bw(),
-                 palette = "Set2"
+    fviz_cluster(
+      kmeans_results(), 
+      data = select(df, -UNITID, -Institution), 
+      geom = "point", ellipse.type = "convex",
+      ggtheme = theme_bw(),
+      palette = "Set2"
     )
-  })
-  
-  # Update selectInput for selecting clusters
-  observe({
-    updateSelectInput(session, "selected_cluster", choices = as.character(1:input$n_clusters))
-  })
-  
-  # Update table of institutions by cluster
-  output$cluster_table <- DT::renderDataTable({
-    # Add cluster assignment to dataset
-    df_with_clusters <- cbind(df, Cluster = factor(kmeans_results()$cluster))
-    # Filter data based on selected cluster
-    if (!is.null(input$selected_cluster)) {
-      filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster, ]
-    } else {
-      filtered_cluster_data <- df_with_clusters
-    }
-    # Sort data by Institution column
-    sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-    # Return the datatable
-    datatable(
-      sorted_cluster_data[, c("UNITID", "Institution", "Cluster")],
-      options = list(
-        server = TRUE,  # Enable server-side processing
-        paging = TRUE,  # Enable paging
-        pageLength = 10,  # Set number of rows per page
-        lengthMenu = c(10, 25, 50)  # Set length menu options
-      )
-    )
-  })
-  
-  output$dataset <- downloadHandler(
-    filename = function() {
-      df_with_clusters <- cbind(df, Cluster = factor(kmeans_results()$cluster))
-      filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster, ]
-      sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-      paste("dataset", ".csv", sep="")
-    },
-    content = function(file) {
-      df_with_clusters <- cbind(df, Cluster = factor(kmeans_results()$cluster))
-      filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster, ]
-      sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-      write.csv(sorted_cluster_data, file, row.names = FALSE)
-    }
-  )
-  
-  
-  
-  ########################################################################################################################
-  
-  
-  
-  # Reactive expression for performing PCA on filtered data for second level clustering
-  pca_results_df_with_clusters <- reactive({
-    # Exclude UNITID and Institution from PCA
-    PCA(select(filtered_data(), -UNITID, -Institution), graph = FALSE)
-  })
-  
-  # Reactive expression for performing K-means clustering on filtered data for second level clustering
-  kmeans_results_df_with_clusters <- reactive({
-    set.seed(123)
-    kmeans(scale(select(filtered_data(), -UNITID, -Institution)), input$n_clusters2, nstart = 25)
-  })
-  
-  # Reactive expression for filtering data based on selected cluster for filtered data for second level clustering
-  filtered_data_df_with_clusters <- reactive({
-    # Filter data based on selected cluster
-    if (!is.null(input$selected_cluster2)) {
-      filtered_df <- filtered_data()[kmeans_results_df_with_clusters()$cluster %in% input$selected_cluster2, ]
-    } else {
-      filtered_df <- filtered_data()
-    }
-    return(filtered_df)
   })
   
   # Update screeplot based on PCA results for filtered dataset for second level clustering
@@ -792,78 +878,6 @@ server <- function(input, output, session) {
     )
   })
   
-  
-  # Update selectInput for selecting clusters for filtered dataset for second level clustering
-  observe({
-    updateSelectInput(session, "selected_cluster2", choices = as.character(1:input$n_clusters2))
-  })
-  
-  # Update table of institutions by cluster for filtered dataset for second level clustering
-  output$cluster_table2 <- DT::renderDataTable({
-    # Add cluster assignment to filtered dataset for second level clustering
-    df_with_clusters <- cbind(filtered_data(), Cluster = factor(kmeans_results_df_with_clusters()$cluster))
-    # Filter data based on selected cluster for second level clustering
-    if (!is.null(input$selected_cluster2)) {
-      filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster2, ]
-    } else {
-      filtered_cluster_data <- df_with_clusters
-    }
-    # Sort data by Institution column
-    sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-    # Return the datatable
-    datatable(
-      sorted_cluster_data[, c("UNITID", "Institution", "Cluster")],
-      options = list(
-        server = TRUE,
-        paging = TRUE,
-        pageLength = 10,
-        lengthMenu = c(10, 25, 50)
-      )
-    )
-  })
-  
-  # Download handler for filtered dataset for second level clustering
-  output$dataset2 <- downloadHandler(
-    filename = function() {
-      filtered_cluster_data <- filtered_data_df_with_clusters()
-      sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-      paste("dataset2", ".csv", sep="")
-    },
-    content = function(file) {
-      filtered_cluster_data <- filtered_data_df_with_clusters()
-      sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-      write.csv(sorted_cluster_data, file, row.names = FALSE)
-    }
-  )
-  
-  
-  
-  ####################################################################################################################################
-  
-  
-  # Reactive expression for performing PCA on filtered data for third level clustering
-  pca_results_df_with_clusters3 <- reactive({
-    # Exclude UNITID and Institution from PCA
-    PCA(select(filtered_data_df_with_clusters(), -UNITID, -Institution), graph = FALSE)
-  })
-  
-  # Reactive expression for performing K-means clustering on filtered data for third level clustering
-  kmeans_results_df_with_clusters3 <- reactive({
-    set.seed(123)
-    kmeans(scale(select(filtered_data_df_with_clusters(), -UNITID, -Institution)), input$n_clusters3, nstart = 25)
-  })
-  
-  # Reactive expression for filtering data based on selected cluster for filtered data for third level clustering
-  filtered_data_df_with_clusters3 <- reactive({
-    # Filter data based on selected cluster
-    if (!is.null(input$selected_cluster3)) {
-      filtered_df <- filtered_data_df_with_clusters()[kmeans_results_df_with_clusters3()$cluster %in% input$selected_cluster3, ]
-    } else {
-      filtered_df <- filtered_data_df_with_clusters()
-    }
-    return(filtered_df)
-  })
-  
   # Update screeplot based on PCA results for filtered dataset for third level clustering
   output$screeplot3 <- renderPlot({
     fviz_screeplot(pca_results_df_with_clusters3(), addlabels = TRUE, barfill = "red", ylim = c(0, 50))
@@ -877,29 +891,39 @@ server <- function(input, output, session) {
       geom = "point", 
       ellipse.type = "convex", 
       ggtheme = theme_bw(),
-      palette = "Set3"  # Using the Set1 palette from RColorBrewer
+      palette = "Dark2"  # Using the Dark2 palette from RColorBrewer
     )
   })
   
-  
-  # Update selectInput for selecting clusters for filtered dataset for third level clustering
-  observe({
-    updateSelectInput(session, "selected_cluster3", choices = as.character(1:input$n_clusters3))
-  })
-  
-  # Update table of institutions by cluster for filtered dataset for third level clustering
-  output$cluster_table3 <- DT::renderDataTable({
-    # Add cluster assignment to filtered dataset for third level clustering
-    df_with_clusters <- cbind(filtered_data_df_with_clusters(), Cluster = factor(kmeans_results_df_with_clusters3()$cluster))
-    # Filter data based on selected cluster for third level clustering
-    if (!is.null(input$selected_cluster3)) {
-      filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster3, ]
+  # Update table of institutions by cluster
+  output$cluster_table <- DT::renderDataTable({
+    df_with_clusters <- cbind(df, Cluster = factor(kmeans_results()$cluster))
+    if (!is.null(input$selected_cluster)) {
+      filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster, ]
     } else {
       filtered_cluster_data <- df_with_clusters
     }
-    # Sort data by Institution column
     sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-    # Return the datatable
+    datatable(
+      sorted_cluster_data[, c("UNITID", "Institution", "Cluster")],
+      options = list(
+        server = TRUE, 
+        paging = TRUE,  
+        pageLength = 10,  
+        lengthMenu = c(10, 25, 50)
+      )
+    )
+  })
+  
+  # Update table of institutions by cluster for filtered dataset for second level clustering
+  output$cluster_table2 <- DT::renderDataTable({
+    df_with_clusters2 <- cbind(filtered_data(), Cluster = factor(kmeans_results_df_with_clusters()$cluster))
+    if (!is.null(input$selected_cluster2)) {
+      filtered_cluster_data2 <- df_with_clusters2[df_with_clusters2$Cluster %in% input$selected_cluster2, ]
+    } else {
+      filtered_cluster_data2 <- df_with_clusters2
+    }
+    sorted_cluster_data <- filtered_cluster_data2[order(filtered_cluster_data2$Institution), ]
     datatable(
       sorted_cluster_data[, c("UNITID", "Institution", "Cluster")],
       options = list(
@@ -911,24 +935,120 @@ server <- function(input, output, session) {
     )
   })
   
-  # Download handler for filtered dataset for third level clustering
-  output$dataset3 <- downloadHandler(
+  # Update table of institutions by cluster for filtered dataset for third level clustering
+  output$cluster_table3 <- DT::renderDataTable({
+    df_with_clusters3 <- cbind(filtered_data_df_with_clusters(), Cluster = factor(kmeans_results_df_with_clusters3()$cluster))
+    if (!is.null(input$selected_cluster3)) {
+      filtered_cluster_data3 <- df_with_clusters3[df_with_clusters3$Cluster %in% input$selected_cluster3, ]
+    } else {
+      filtered_cluster_data3 <- df_with_clusters3
+    }
+    sorted_cluster_data <- filtered_cluster_data3[order(filtered_cluster_data3$Institution), ]
+    datatable(
+      sorted_cluster_data[, c("UNITID", "Institution", "Cluster")],
+      options = list(
+        server = TRUE,
+        paging = TRUE,
+        pageLength = 10,
+        lengthMenu = c(10, 25, 50)
+      )
+    )
+  })
+  
+  # Update selectInput for selecting clusters
+  observe({
+    updateSelectInput(session, "selected_cluster", choices = as.character(1:input$n_clusters))
+  })
+  
+  # Update selectInput for selecting clusters for filtered dataset for second level clustering
+  observe({
+    updateSelectInput(session, "selected_cluster2", choices = as.character(1:input$n_clusters2))
+  })
+  
+  # Update selectInput for selecting clusters for filtered dataset for third level clustering
+  observe({
+    updateSelectInput(session, "selected_cluster3", choices = as.character(1:input$n_clusters3))
+  })
+  
+  output$dataset <- downloadHandler(
     filename = function() {
-      filtered_cluster_data <- filtered_data_df_with_clusters3()
-      sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-      paste("dataset3", ".csv", sep="")
+      paste("dataset.csv", sep="")
     },
     content = function(file) {
-      filtered_cluster_data <- filtered_data_df_with_clusters3()
-      sorted_cluster_data <- filtered_cluster_data[order(filtered_cluster_data$Institution), ]
-      write.csv(sorted_cluster_data, file, row.names = FALSE)
+      selected_vars <- input$selected_vars
+      if (is.null(selected_vars)) {
+        selected_vars <- colnames(df)
+      }
+      
+      df_with_clusters <- cbind(df, Cluster = factor(kmeans_results()$cluster))
+      
+      if (!is.null(input$selected_cluster)) {
+        filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster, ]
+      } else {
+        filtered_cluster_data <- df_with_clusters
+      }
+      
+      selected_vars <- c("UNITID", "Institution", selected_vars, "Cluster")
+      filtered_selected_data <- filtered_cluster_data[, selected_vars, drop = FALSE]
+      
+      write.csv(filtered_selected_data, file, row.names = FALSE)
+    }
+  )
+  
+  output$dataset2 <- downloadHandler(
+    filename = function() {
+      paste("dataset2.csv", sep="")
+    },
+    content = function(file) {
+      selected_vars <- input$selected_vars
+      if (is.null(selected_vars)) {
+        selected_vars <- colnames(df)
+      }
+      
+      df_with_clusters <- cbind(filtered_data(), Cluster = factor(kmeans_results_df_with_clusters()$cluster))
+      
+      if (!is.null(input$selected_cluster2)) {
+        filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster2, ]
+      } else {
+        filtered_cluster_data <- df_with_clusters
+      }
+      
+      selected_vars <- c("UNITID", "Institution", input$selected_vars, "Cluster")
+      filtered_selected_data <- filtered_cluster_data[, selected_vars, drop = FALSE]
+      
+      write.csv(filtered_selected_data, file, row.names = FALSE)
+    }
+  )
+  
+  output$dataset3 <- downloadHandler(
+    filename = function() {
+      paste("dataset3.csv", sep="")
+    },
+    content = function(file) {
+      selected_vars <- input$selected_vars
+      if (is.null(selected_vars)) {
+        selected_vars <- colnames(df)
+      }
+      
+      df_with_clusters <- cbind(filtered_data_df_with_clusters(), Cluster = factor(kmeans_results_df_with_clusters3()$cluster))
+      
+      if (!is.null(input$selected_cluster3)) {
+        filtered_cluster_data <- df_with_clusters[df_with_clusters$Cluster %in% input$selected_cluster3, ]
+      } else {
+        filtered_cluster_data <- df_with_clusters
+      }
+      
+      selected_vars <- c("UNITID", "Institution", input$selected_vars, "Cluster")
+      filtered_selected_data <- filtered_cluster_data[, selected_vars, drop = FALSE]
+      
+      write.csv(filtered_selected_data, file, row.names = FALSE)
     }
   )
   
   ##Data table for the data dictionary
   output$dictionarytable  <-  
     DT::renderDataTable(dictionary)
-
+  
   
   ###Download handler for the data dictionary
   output$datadictionary <- downloadHandler(
@@ -940,6 +1060,7 @@ server <- function(input, output, session) {
     }
   )
 }
+
 
 shinyApp(ui = ui, server = server)
 ```
