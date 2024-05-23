@@ -6,13 +6,10 @@ Mark Perkins and Sean Field
 # Load required libraries for data munging
 
 ``` r
-library(ipeds)
-library(tidyverse)
-library(dplyr)
-library(tidycensus)
-library(knitr)
-library(RODBC)
-library(questionr)
+packages <-c('IPEDS','tidyverse','dplyr','tidycensus',
+             'knitr','RODBC','questionr','tibble','httr','readxl')
+for(p in packages) if(p %in% rownames(installed.packages()) == F) { install.packages(p) }
+for(p in packages) suppressPackageStartupMessages(library(p,quietly=T,character.only=T))
 ```
 
 # Download necessary data
@@ -39,14 +36,14 @@ if (response$status_code == 200) {
 unzip(destfile,exdir="./")
 
 ```
-### Get Access file path
 
-IPEDSDatabase \<- odbcDriverConnect(“Driver={Microsoft Access Driver
-(*.mdb, *.accdb)};DBQ=FILE PATH HERE”)
 
 # Begin to build your dataset with IPEDS using the Access file from the site linked on GitHub
 
 ``` r
+#Call IPEDS Access File from Directory
+IPEDSDatabase <- odbcDriverConnect("Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=./IPEDS202122.accdb")
+
 #Get Institution Information from HD Table and Reduce to Desired Variables
 institutioninformation <-  sqlFetch(IPEDSDatabase, "HD2021")
 
