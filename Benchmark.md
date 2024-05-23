@@ -38,7 +38,7 @@ unzip(destfile,exdir="./")
 ```
 
 
-# Begin to build your dataset with IPEDS using the Access file from the site linked on GitHub
+# Build your dataset with IPEDS data
 
 ``` r
 #Call IPEDS Access File from Directory
@@ -533,19 +533,12 @@ write.csv(ipedsgraddata, "ipedsgradmassive2.csv")
 # Code for the Shiny dashboard. Be sure to use a Shiny application file to run this.
 
 ``` r
-library(factoextra)
-library(FactoMineR)
-library(tidyverse)
-library(dplyr)
-library(data.table)
-library(DT)
-library(shiny)
-library(shinyWidgets)
-library(shinydashboard)
-library(plotly)
-library(corrr)
-library(factoextra)
-library(FactoMineR)
+
+packages <-c('factoextra','FactoMineR','tidyverse','dplyr',
+             'data.table','DT','shiny','shinyWidgets','shinydashboard','plotly',
+             'corrr')
+for(p in packages) if(p %in% rownames(installed.packages()) == F) { install.packages(p) }
+for(p in packages) suppressPackageStartupMessages(library(p,quietly=T,character.only=T))
 
 
 # Load data
