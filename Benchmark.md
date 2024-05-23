@@ -17,6 +17,7 @@ for(p in packages) suppressPackageStartupMessages(library(p,quietly=T,character.
 ``` r
 ### Grab Your Census Key:
 census_api_key("API Census Key Goes Here")
+# census key can be accessed [here](https://api.census.gov/data/key_signup.html)
 
 ### Download IPEDS data from nces.ed.gov
 url <- "https://nces.ed.gov/ipeds/tablefiles/zipfiles/IPEDS_2021-22_Final.zip"
