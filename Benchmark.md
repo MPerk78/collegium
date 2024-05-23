@@ -18,9 +18,26 @@ library(questionr)
 # Download necessary data
 
 ``` r
-### Include your Census Key:
+### Grab Your Census Key:
+census_api_key("API Census Key Goes Here")
 
-census_api_key("API_Key Goes her")
+### Download IPEDS data from nces.ed.gov
+url <- "https://nces.ed.gov/ipeds/tablefiles/zipfiles/IPEDS_2021-22_Final.zip"
+
+# Define the destination file path and download the file to local folder
+destfile <- "IPEDSData.zip"
+response <- GET(url, write_disk(destfile, overwrite = TRUE))
+
+# Check if the download was successful
+if (response$status_code == 200) {
+  cat("File downloaded successfully.\n")
+} else {
+  cat("Failed to download file. Status code:", response$status_code, "\n")
+}
+
+# Unzip downloaded data
+unzip(destfile,exdir="./")
+
 ```
 ### Get Access file path
 
