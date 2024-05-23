@@ -7,7 +7,7 @@ Collegium requires two datasets:
   2) An API key from the U.S. Census Bureau, which can be obtained [here](http://api.census.gov/data/key_signup.html).
 
 # Contact
-If you have questions, email Mark Perkins (Mark, do you want your email here?)
+If you have questions, email Mark Perkins at mperki17@uwyo.edu.
 
 # License & Use
 This project is licensed under the GPL-3.0. Refer to the LICENSE.txt file for details.
