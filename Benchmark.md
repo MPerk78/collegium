@@ -17,7 +17,7 @@ library(questionr)
 
 ### Include your Census Key:
 
-census_api_key(“API_Key Goes here”)
+census_api_key("API_Key Goes her")
 
 ### Get Access file path
 
