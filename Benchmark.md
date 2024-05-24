@@ -6,45 +6,27 @@ Mark Perkins and Sean Field
 # Load required libraries for data munging
 
 ``` r
-packages <-c('IPEDS','tidyverse','dplyr','tidycensus',
-             'knitr','RODBC','questionr','tibble','httr','readxl')
-for(p in packages) if(p %in% rownames(installed.packages()) == F) { install.packages(p) }
-for(p in packages) suppressPackageStartupMessages(library(p,quietly=T,character.only=T))
+library(IPEDS)
+library(tidyverse)
+library(dplyr)
+library(tidycensus)
+library(knitr)
+library(RODBC)
+library(questionr)
 ```
 
-# Download necessary data
+### Include your Census Key:
+
+census_api_key(“API_Key Goes here”)
+
+### Get Access file path
+
+IPEDSDatabase \<- odbcDriverConnect(“Driver={Microsoft Access Driver
+(*.mdb, *.accdb)};DBQ=FILE PATH HERE”)
+
+# Begin to build your dataset with IPEDS using the Access file from the site linked on GitHub
 
 ``` r
-# Grab Your Census Key:
-census_api_key("API Census Key Goes Here")
-# census key can be accessed at https://api.census.gov/data/key_signup.html
-
-# Download IPEDS data from nces.ed.gov
-url <- "https://nces.ed.gov/ipeds/tablefiles/zipfiles/IPEDS_2021-22_Final.zip"
-
-# Define the destination file path and download the file to local folder
-destfile <- "IPEDSData.zip"
-response <- GET(url, write_disk(destfile, overwrite = TRUE))
-
-# Check if the download was successful
-if (response$status_code == 200) {
-  cat("File downloaded successfully.\n")
-} else {
-  cat("Failed to download file. Status code:", response$status_code, "\n")
-}
-
-# Unzip downloaded data
-unzip(destfile,exdir="./")
-
-```
-
-
-# Build your dataset with IPEDS data
-
-``` r
-#Call IPEDS Access File from Directory
-IPEDSDatabase <- odbcDriverConnect("Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=./IPEDS202122.accdb")
-
 #Get Institution Information from HD Table and Reduce to Desired Variables
 institutioninformation <-  sqlFetch(IPEDSDatabase, "HD2021")
 
@@ -132,8 +114,11 @@ ipeds <- left_join(institutioninformation, enrollmentinformationgender, by = "UN
   rename("Tot_Part_Time_Men" = EFPTMEN) %>%
   rename("Tot_Part_Time_Women" = EFPTWOM) %>%
   rename("TwoYGradRate100" = L4GR100) %>%
+  mutate("TwoYGradRate100" = .01*TwoYGradRate100)%>%
   rename("TwoYGradRate150" = L4GR150) %>%
-  rename("TwoYGradRate200" = L4GR200)%>%
+  mutate("TwoYGradRate150" = .01*TwoYGradRate150)%>%
+  rename("TwoYGradRate200" =  L4GR200)%>%
+  mutate("TwoYGradRate200" = .01*TwoYGradRate200)%>%
   rename("FT_Retention" = RET_PCF) %>%
   rename("PT_Retention" = RET_PCP) %>%
   rename("Cost_Off_Campus" = CINSOFF) %>%
@@ -149,17 +134,17 @@ ipeds <- left_join(institutioninformation, enrollmentinformationgender, by = "UN
   rename("Two_or_More" = EF2MORT) %>%
   rename("White" = EFWHITT) %>%
   rename("transfer" = TRRTTOT)%>%
-  mutate("Percent_Women" = (Tot_Women / Tot_Enrolled)*100) %>%
-  mutate("Percent_FT" = (Tot_Full_Time / Tot_Enrolled)*100) %>%
-  mutate("Percent_Am_Indian" = (Am_Indian / Tot_Enrolled)*100) %>%
-  mutate("Percent_Asian" = (Asian / Tot_Enrolled)*100) %>%
-  mutate("Percent_Black" = (Black / Tot_Enrolled)*100) %>%
-  mutate("Percent_Hispanic" = (Hispanic / Tot_Enrolled)*100) %>%
-  mutate("Percent_Hawaii_PI" = (Hawaii_PI / Tot_Enrolled)*100) %>%
-  mutate("Percent_Non_Resident" = (Non_Resident / Tot_Enrolled)*100) %>%
-  mutate("Percent_Unknown" = (Unknown / Tot_Enrolled)*100) %>%
-  mutate("Percent_Two_or_More" = (Two_or_More / Tot_Enrolled)*100) %>%
-  mutate("Percent_White" = (White / Tot_Enrolled)*100)
+  mutate("Percent_Women" = (Tot_Women / Tot_Enrolled)) %>%
+  mutate("Percent_FT" = (Tot_Full_Time / Tot_Enrolled)) %>%
+  mutate("Percent_Am_Indian" = (Am_Indian / Tot_Enrolled)) %>%
+  mutate("Percent_Asian" = (Asian / Tot_Enrolled)) %>%
+  mutate("Percent_Black" = (Black / Tot_Enrolled)) %>%
+  mutate("Percent_Hispanic" = (Hispanic / Tot_Enrolled)) %>%
+  mutate("Percent_Hawaii_PI" = (Hawaii_PI / Tot_Enrolled)) %>%
+  mutate("Percent_Non_Resident" = (Non_Resident / Tot_Enrolled)) %>%
+  mutate("Percent_Unknown" = (Unknown / Tot_Enrolled)) %>%
+  mutate("Percent_Two_or_More" = (Two_or_More / Tot_Enrolled)) %>%
+  mutate("Percent_White" = (White / Tot_Enrolled))
 
 
 
@@ -534,12 +519,17 @@ write.csv(ipedsgraddata, "ipedsgradmassive2.csv")
 # Code for the Shiny dashboard. Be sure to use a Shiny application file to run this.
 
 ``` r
-
-packages <-c('factoextra','FactoMineR','tidyverse','dplyr',
-             'data.table','DT','shiny','shinyWidgets','shinydashboard','plotly',
-             'corrr')
-for(p in packages) if(p %in% rownames(installed.packages()) == F) { install.packages(p) }
-for(p in packages) suppressPackageStartupMessages(library(p,quietly=T,character.only=T))
+library(factoextra)
+library(FactoMineR)
+library(tidyverse)
+library(dplyr)
+library(data.table)
+library(DT)
+library(shiny)
+library(shinyWidgets)
+library(shinydashboard)
+library(plotly)
+library(corrr)
 
 
 # Load data
@@ -588,6 +578,72 @@ datatable_obj <- datatable(
 
 
 dictionary<- read.csv('datadictionary.csv')
+
+
+library(factoextra)
+library(FactoMineR)
+library(tidyverse)
+library(dplyr)
+library(data.table)
+library(DT)
+library(shiny)
+library(shinyWidgets)
+library(shinydashboard)
+library(plotly)
+library(corrr)
+
+
+# Load data
+df <- na.omit(read.csv("ipedsgradmassive2.csv"))
+df <- select(df, UNITID, Institution, TwoYGradRate150,
+             FT_Retention, PT_Retention, Cost_Off_Campus, gradtransf,
+             Percent_Women, Percent_FT, Percent_Am_Indian, Percent_Asian, Percent_Black,
+             Percent_Hispanic, Percent_Hawaii_PI, Percent_Non_Resident, Percent_Unknown,
+             Percent_Two_or_More, Percent_White, Percent_Unemployed, WithHealth, med_income,
+             PercentWhite, PercentVet, percentpopchange, HousePercent, percentnevermarried,
+             percentmarried, percentdivorced, percentseparated, percentwidowed, percentsingle,
+             PercentLessthanHS, PercentHS, PercentSomeorASS, PercentBach, PercentGradorPro,
+             percenttribe, SingleParPercent, PercentNotCitizen, PercentImmigrant, PercentRent) %>%
+  arrange(Institution)
+
+corrdata <- df%>%
+select(-UNITID)
+corrdata<- correlate(corrdata)%>%
+  shave() %>%
+  mutate(across(where(is.numeric), ~ round(.x, 2)))
+
+formatted_df <- as.data.frame(corrdata)
+
+formatted_df <- tibble::rownames_to_column(formatted_df, "Variable")%>%
+  select(-Variable)
+
+brks <- seq(-1, 1, .01)
+clrs <- colorRampPalette(c("white", "#6baed6"))(length(brks) + 1)
+
+dataCol_df <- ncol(formatted_df) - 1  # Exclude the first column which contains row names
+dataColRng <- 1:dataCol_df  # Range of columns
+
+datatable_obj <- datatable(
+  formatted_df,
+  escape = FALSE,
+  options = list(
+    paging = TRUE,
+    searching = FALSE,
+    info = FALSE,
+    sort = TRUE,
+    scrollX = TRUE,
+    fixedColumns = list(leftColumns = 2)  # Fix the first two left columns
+  )
+) %>%
+  formatStyle(columns = dataColRng, backgroundColor = styleInterval(brks, clrs))
+
+
+dictionary<- read.csv('datadictionary.csv')
+
+df <- df %>%
+  mutate(across(c(TwoYGradRate150:PercentRent), 
+                ~ scale(.)[, 1], 
+                .names = "{col}_z"))
 
 # Define UI
 ui <- dashboardPage(
@@ -654,20 +710,26 @@ ui <- dashboardPage(
                             second, or third level of peers. If your list is 
                             too large after three, you could randomly select 
                             from that list to get a reasonable set based on 
-                            profile analytics. If you have too few, go up a level.")
+                            profile analytics. If you have too few, go up a level."),
+                         h4(HTML("<b>Note:</b> The variables used in the analyses
+                         have been standardized (Z). The data download will include
+                         both the unstandardized and standardized data,
+                         but only for the institutions in the selected cluster
+                         and the variables you select from the input control."))
                   )
                 ),
                 h1("Correlation Table"),
+                h4(HTML("Computed using Pearson's <i>r</i> with unconverted data")),
                 fluidRow(
                   column(width = 12,
-                          DT::dataTableOutput("correlation_table"),
-                          downloadButton("cortbl", "Download Correlation Matrix"))),
+                         DT::dataTableOutput("correlation_table"),
+                         downloadButton("cortbl", "Download Correlation Matrix"))),
                 h1("Level 1"),
                 fluidRow(
                   column(width = 12,
                          pickerInput("selected_vars", "Select Variables:", 
-                                     choices = setdiff(colnames(df), c("UNITID", "Institution")),  # Exclude UNITID and Institution
-                                     selected = setdiff(colnames(df), c("UNITID", "Institution")),  # Set all variables except UNITID and Institution as selected by default
+                                     choices = grep("_z$", colnames(df), value = TRUE),  # Only Z scores
+                                     selected = grep("_z$", colnames(df), value = TRUE),  # All Z scores selected by default
                                      multiple = TRUE, 
                                      options = list(
                                        `actions-box` = TRUE,
@@ -679,7 +741,7 @@ ui <- dashboardPage(
                          sliderInput("n_clusters", "Number of Clusters:", min = 1, max = 10, value = 5)
                   )
                 ),
-            
+                
                 fluidRow(
                   column(width = 3,
                          plotOutput("screeplot", height = "250px")
@@ -752,15 +814,17 @@ ui <- dashboardPage(
               )
       ),
       tabItem(tabName = 'dictionary',
+              fluidPage(
               h1("Download the Dictionary"),
               column(width = 3,
                      downloadButton("datadictionary", "Download the Data Dictionary")),
               column(width = 12,
-                     DT::dataTableOutput("dictionarytable"))
+                     DT::dataTableOutput("dictionarytable")))
       )
     )
   )
 )
+
 
 server <- function(input, output, session) {
   
@@ -779,6 +843,22 @@ server <- function(input, output, session) {
       write.csv(corrdata, file)
     }
   )
+  
+  # Function to download datasets
+  downloadDataset <- function(filtered_cluster_data, selected_vars, file) {
+    # Create a vector of original variable names by removing "_z" suffix
+    original_vars <- unique(sub("_z$", "", selected_vars))
+    
+    # Combine original and Z score columns for the selected variables
+    all_selected_vars <- unique(c(original_vars, selected_vars))
+    all_selected_vars <- all_selected_vars[all_selected_vars %in% colnames(df)]
+    
+    selected_vars_with_metadata <- c("UNITID", "Institution", all_selected_vars, "Cluster")
+    
+    filtered_selected_data <- filtered_cluster_data[, selected_vars_with_metadata, drop = FALSE]
+    
+    write.csv(filtered_selected_data, file, row.names = FALSE)
+  }
   
   # Reactive expression for performing PCA
   pca_results <- reactive({
@@ -999,10 +1079,7 @@ server <- function(input, output, session) {
         filtered_cluster_data <- df_with_clusters
       }
       
-      selected_vars <- c("UNITID", "Institution", selected_vars, "Cluster")
-      filtered_selected_data <- filtered_cluster_data[, selected_vars, drop = FALSE]
-      
-      write.csv(filtered_selected_data, file, row.names = FALSE)
+      downloadDataset(filtered_cluster_data, selected_vars, file)
     }
   )
   
@@ -1024,10 +1101,7 @@ server <- function(input, output, session) {
         filtered_cluster_data <- df_with_clusters
       }
       
-      selected_vars <- c("UNITID", "Institution", input$selected_vars, "Cluster")
-      filtered_selected_data <- filtered_cluster_data[, selected_vars, drop = FALSE]
-      
-      write.csv(filtered_selected_data, file, row.names = FALSE)
+      downloadDataset(filtered_cluster_data, selected_vars, file)
     }
   )
   
@@ -1049,10 +1123,7 @@ server <- function(input, output, session) {
         filtered_cluster_data <- df_with_clusters
       }
       
-      selected_vars <- c("UNITID", "Institution", input$selected_vars, "Cluster")
-      filtered_selected_data <- filtered_cluster_data[, selected_vars, drop = FALSE]
-      
-      write.csv(filtered_selected_data, file, row.names = FALSE)
+      downloadDataset(filtered_cluster_data, selected_vars, file)
     }
   )
   
@@ -1076,4 +1147,4 @@ server <- function(input, output, session) {
 shinyApp(ui = ui, server = server)
 ```
 
-![](Benchmark_files/figure-gfm/cluster%20Shiny%20Code-1.png)<!-- -->
+<div style="width: 100% ; height: 400px ; text-align: center; box-sizing: border-box; -moz-box-sizing: border-box; -webkit-box-sizing: border-box;" class="muted well">Shiny applications not supported in static R Markdown documents</div>
