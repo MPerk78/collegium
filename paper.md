@@ -1,10 +1,8 @@
 ---
 output: 
-  html_document:
-    keep_md: true
+  pdf_document: default
 bibliography: references.bib
-biblio-style: numeric
-    
+citation_package: natbib
 ---
 
 
