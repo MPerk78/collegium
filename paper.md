@@ -1,5 +1,13 @@
 ---
 title: "Collegium: A dashboard to help community colleges find peer institutions"
+author:
+  - name: "Mark A. Perkins"
+    affiliation: 1
+  - name: "Sean Field"
+    affiliation: 2
+affiliations:
+  - name: "Univesity of Wyoming College of Education"
+  - name: "University of Wyoming School of Computing"
 output: 
   pdf_document: default
 bibliography: references.bib
