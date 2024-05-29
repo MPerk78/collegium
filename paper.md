@@ -1,4 +1,5 @@
 ---
+title: "Collegium: A dashboard to help community colleges find peer institutions"
 output: 
   pdf_document: default
 bibliography: references.bib
