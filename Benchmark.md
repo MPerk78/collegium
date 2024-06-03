@@ -13,6 +13,7 @@ library(tidycensus)
 library(knitr)
 library(RODBC)
 library(questionr)
+library(tinytex)
 ```
 
 ### Include your Census Key:
@@ -530,6 +531,7 @@ library(shinyWidgets)
 library(shinydashboard)
 library(plotly)
 library(corrr)
+library(reshape2)
 
 
 # Load data
@@ -545,69 +547,11 @@ df <- select(df, UNITID, Institution, TwoYGradRate150,
              percenttribe, SingleParPercent, PercentNotCitizen, PercentImmigrant, PercentRent) %>%
   arrange(Institution)
 
-corrdata <- df%>%
-select(-UNITID)
-corrdata<- correlate(corrdata)%>%
-  shave() %>%
-  mutate(across(where(is.numeric), ~ round(.x, 2)))
-
-formatted_df <- as.data.frame(corrdata)
-
-formatted_df <- tibble::rownames_to_column(formatted_df, "Variable")%>%
-  select(-Variable)
-
-brks <- seq(-1, 1, .01)
-clrs <- colorRampPalette(c("white", "#6baed6"))(length(brks) + 1)
-
-dataCol_df <- ncol(formatted_df) - 1  # Exclude the first column which contains row names
-dataColRng <- 1:dataCol_df  # Range of columns
-
-datatable_obj <- datatable(
-  formatted_df,
-  escape = FALSE,
-  options = list(
-    paging = TRUE,
-    searching = FALSE,
-    info = FALSE,
-    sort = TRUE,
-    scrollX = TRUE,
-    fixedColumns = list(leftColumns = 2)  # Fix the first two left columns
-  )
-) %>%
-  formatStyle(columns = dataColRng, backgroundColor = styleInterval(brks, clrs))
-
-
-dictionary<- read.csv('datadictionary.csv')
-
-
-library(factoextra)
-library(FactoMineR)
-library(tidyverse)
-library(dplyr)
-library(data.table)
-library(DT)
-library(shiny)
-library(shinyWidgets)
-library(shinydashboard)
-library(plotly)
-library(corrr)
-
-
-# Load data
-df <- na.omit(read.csv("ipedsgradmassive2.csv"))
-df <- select(df, UNITID, Institution, TwoYGradRate150,
-             FT_Retention, PT_Retention, Cost_Off_Campus, gradtransf,
-             Percent_Women, Percent_FT, Percent_Am_Indian, Percent_Asian, Percent_Black,
-             Percent_Hispanic, Percent_Hawaii_PI, Percent_Non_Resident, Percent_Unknown,
-             Percent_Two_or_More, Percent_White, Percent_Unemployed, WithHealth, med_income,
-             PercentWhite, PercentVet, percentpopchange, HousePercent, percentnevermarried,
-             percentmarried, percentdivorced, percentseparated, percentwidowed, percentsingle,
-             PercentLessthanHS, PercentHS, PercentSomeorASS, PercentBach, PercentGradorPro,
-             percenttribe, SingleParPercent, PercentNotCitizen, PercentImmigrant, PercentRent) %>%
-  arrange(Institution)
+df$UNITID<- as.character(df$UNITID)
 
 corrdata <- df%>%
 select(-UNITID)
+
 corrdata<- correlate(corrdata)%>%
   shave() %>%
   mutate(across(where(is.numeric), ~ round(.x, 2)))
@@ -644,6 +588,9 @@ df <- df %>%
   mutate(across(c(TwoYGradRate150:PercentRent), 
                 ~ scale(.)[, 1], 
                 .names = "{col}_z"))
+standardized_column_names <- names(df)[grepl("_z$", names(df))]
+
+train_data <- df[, standardized_column_names]
 
 # Define UI
 ui <- dashboardPage(
@@ -652,7 +599,8 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Introduction", tabName = "intro", icon = icon("user")), 
-      menuItem("K Means", tabName = "kmean", icon = icon("user")), 
+      menuItem("K Means", tabName = "kmean", icon = icon("user")),
+      menuItem("Nearest Neighbor", tabName = "nneigh", icon = icon("user")),
       menuItem("Data Dictionary", tabName = "dictionary", icon = icon("user"))
     )
   ),
@@ -711,6 +659,9 @@ ui <- dashboardPage(
                             too large after three, you could randomly select 
                             from that list to get a reasonable set based on 
                             profile analytics. If you have too few, go up a level."),
+                         h3(HTML("Please allow a moment for the application to load. 
+                                 There are extensive computations taking place behind 
+                                 the scenes!")),
                          h4(HTML("<b>Note:</b> The variables used in the analyses
                          have been standardized (Z). The data download will include
                          both the unstandardized and standardized data,
@@ -813,6 +764,56 @@ ui <- dashboardPage(
                 )
               )
       ),
+      tabItem(tabName = 'nneigh',
+              fluidPage(titlePanel("Nearest Neighbor to Find Peer Community Colleges"),
+                        tags$style(HTML("
+                                body {
+                                background-color: #e4e5f0; /* Light gray background */
+                                }
+                                ")),
+                        fluidRow(
+                          column(width = 12, 
+                                 h3("To use this interface, select your institution and
+                                    then the number of peers you want. The plot will show you
+                                    their Euclidean distances and the table will give all
+                                    their data, which you can download as filtered."),
+                                 h3(HTML("Please allow a moment for the application to load. 
+                                 There are extensive computations taking place behind 
+                                 the scenes!")),
+                                 h4(HTML("<b>Note:</b> The variables used in the analyses
+                         have been standardized (Z). The data download will include
+                         both the unstandardized and standardized data,
+                         but only for the institutions in the selected cluster
+                         and the variables you select from the input control.")))
+                        ),
+                      fluidRow(
+                        column(width = 12,
+                               pickerInput("institution", "Select an Institution:",
+                                           choices = unique(df$Institution), 
+                                           options = list(`live-search` = TRUE)))),
+                      fluidRow(
+                        column(width = 12,
+                               numericInput("k", "Number of Nearest Neighbors:",
+                                          value = 5, min = 1)),
+                        h6(HTML("<b>If it appears to not generate the plot and table or if it
+                        gives an 'Error: Na/NaN' message, give it a few 
+                        minutes as it calculates the distances. This takes some 
+                        computing time! This may occur upon loading the page and
+                        when changing the number of neighbors</b>"))),
+                      fluidRow(
+                        column(width = 12,
+                               downloadButton("downloadData", "Download Neighbors Data"))),
+                      fluidRow(
+                        column(width = 12,
+                               plotlyOutput("plot"))),
+                      fluidRow(
+                        column(width = 12,
+                               div(style = "overflow-x: auto;",
+                                   DT::dataTableOutput("table"))
+                        )
+                      )
+              )
+     ),
       tabItem(tabName = 'dictionary',
               fluidPage(
               h1("Download the Dictionary"),
@@ -1124,6 +1125,77 @@ server <- function(input, output, session) {
       }
       
       downloadDataset(filtered_cluster_data, selected_vars, file)
+    }
+  )
+  
+  selected_neighbors <- reactive({
+    req(input$institution)
+    selected_institution <- input$institution
+    k <- input$k
+    
+    # Get the data for the selected institution
+    test_instance <- train_data[df$Institution == selected_institution, , drop = FALSE]
+    
+    # Compute distances to all other institutions
+    distances <- apply(train_data, 1, function(row) sum((row - test_instance)^2))
+    
+    # Get the indices of the k nearest neighbors
+    neighbors_indices <- order(distances)[2:(k + 1)]  # Skip the first one as it is the institution itself
+    
+    # Prepare the neighbors dataframe
+    neighbors_df <- data.frame(Institution = selected_institution, Neighbor = df$Institution[neighbors_indices])
+    neighbors_df <- neighbors_df %>%
+      left_join(df, by = c("Neighbor" = "Institution"))
+    return(neighbors_df)
+  })
+  
+  # Calculate Euclidean distances between selected institution and its neighbors
+  euclidean_distances <- reactive({
+    req(input$institution)
+    
+    # Filter data for the selected institution and its neighbors
+    neighbors_data <- selected_neighbors()
+    selected_institution <- input$institution
+    test_instance <- train_data[df$Institution == selected_institution, , drop = FALSE]
+    
+    # Compute distances to all other institutions
+    distances <- apply(train_data, 1, function(row) sqrt(sum((row - test_instance)^2)))
+    
+    # Add distances to neighbors dataframe
+    neighbors_data$Distance <- distances[df$Institution %in% neighbors_data$Neighbor]
+    
+    return(neighbors_data)
+  })
+  
+  # Render plot
+  output$plot <- renderPlotly({
+    req(input$institution)
+    
+    # Get Euclidean distances
+    neighbors_data_with_distances <- euclidean_distances()
+    
+    # Create plot
+    p <- ggplot(neighbors_data_with_distances, aes(x = Neighbor, y = Distance)) +
+      geom_point() +
+      labs(x = "Institution", y = "Distance", title = "Euclidean Distances from Selected Institution") +
+      theme(axis.text.x = element_text(angle = 35, vjust = 0.5, hjust=1))
+    
+    # Convert ggplot to plotly
+    ggplotly(p)
+  })
+  
+  
+  output$table <-  DT::renderDataTable({
+    datatable(selected_neighbors(), options = list(pageLength = 10)) %>%
+      formatRound(4:ncol(selected_neighbors()), digits = 3)
+  })
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste("neighbors-", input$institution, ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(selected_neighbors(), file, row.names = FALSE)
     }
   )
   
