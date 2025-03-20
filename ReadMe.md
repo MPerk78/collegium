@@ -13,3 +13,6 @@ If you have questions, email Mark Perkins at mperki17@uwyo.edu.
 This project is licensed under the GPL-3.0. Refer to the LICENSE.txt file for details.
 To cite this software, use: 
 <citations if published>
+
+# Zenodo DOI Badge
+https://doi.org/10.5281/zenodo.15058665
